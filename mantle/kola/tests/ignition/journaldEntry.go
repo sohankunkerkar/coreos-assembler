@@ -26,9 +26,10 @@ const ignitionJournalMsgId = "57124006b5c94805b77ce473e92a8aeb"
 
 func init() {
 	register.RegisterTest(&register.Test{
-		Name:        "coreos.ignition.journald-log",
-		Run:         sendJournaldLog,
-		ClusterSize: 1,
+		Name:           "coreos.ignition.journald-log",
+		Run:            sendJournaldLog,
+		ClusterSize:    1,
+		ExcludeDistros: []string{"rhcos"},
 	})
 }
 
