@@ -15,10 +15,9 @@
 package misc
 
 import (
-	"encoding/json"
-
 	"github.com/coreos/mantle/kola/cluster"
 	"github.com/coreos/mantle/kola/register"
+	"github.com/coreos/mantle/kola/tests/util"
 	"github.com/coreos/mantle/platform"
 	"github.com/coreos/mantle/platform/conf"
 )
@@ -114,7 +113,7 @@ func RootOnRaid(c cluster.TestCluster) {
 		c.Fatal(err)
 	}
 
-	checkIfMountpointIsRaid(c, m, "/")
+	util.CheckIfMountpointIsRaid(c, m, "/")
 
 	// reboot it to make sure it comes up again
 	err = m.Reboot()
@@ -122,13 +121,13 @@ func RootOnRaid(c cluster.TestCluster) {
 		c.Fatalf("could not reboot machine: %v", err)
 	}
 
-	checkIfMountpointIsRaid(c, m, "/")
+	util.CheckIfMountpointIsRaid(c, m, "/")
 }
 
 func DataOnRaid(c cluster.TestCluster) {
 	m := c.Machines()[0]
 
-	checkIfMountpointIsRaid(c, m, "/var/lib/data")
+	util.CheckIfMountpointIsRaid(c, m, "/var/lib/data")
 
 	// reboot it to make sure it comes up again
 	err := m.Reboot()
@@ -136,53 +135,5 @@ func DataOnRaid(c cluster.TestCluster) {
 		c.Fatalf("could not reboot machine: %v", err)
 	}
 
-	checkIfMountpointIsRaid(c, m, "/var/lib/data")
-}
-
-type lsblkOutput struct {
-	Blockdevices []blockdevice `json:"blockdevices"`
-}
-
-type blockdevice struct {
-	Name       string        `json:"name"`
-	Type       string        `json:"type"`
-	Mountpoint *string       `json:"mountpoint"`
-	Children   []blockdevice `json:"children"`
-}
-
-// checkIfMountpointIsRaid will check if a given machine has a device of type
-// raid1 mounted at the given mountpoint. If it does not, the test is failed.
-func checkIfMountpointIsRaid(c cluster.TestCluster, m platform.Machine, mountpoint string) {
-	output := c.MustSSH(m, "lsblk --json")
-
-	l := lsblkOutput{}
-	err := json.Unmarshal(output, &l)
-	if err != nil {
-		c.Fatalf("couldn't unmarshal lsblk output: %v", err)
-	}
-
-	foundRoot := checkIfMountpointIsRaidWalker(c, l.Blockdevices, mountpoint)
-	if !foundRoot {
-		c.Fatalf("didn't find root mountpoint in lsblk output")
-	}
-}
-
-// checkIfMountpointIsRaidWalker will iterate over bs and recurse into its
-// children, looking for a device mounted at / with type raid1. true is returned
-// if such a device is found. The test is failed if a device of a different type
-// is found to be mounted at /.
-func checkIfMountpointIsRaidWalker(c cluster.TestCluster, bs []blockdevice, mountpoint string) bool {
-	for _, b := range bs {
-		if b.Mountpoint != nil && *b.Mountpoint == mountpoint {
-			if b.Type != "raid1" {
-				c.Fatalf("device %q is mounted at %q with type %q (was expecting raid1)", b.Name, mountpoint, b.Type)
-			}
-			return true
-		}
-		foundRoot := checkIfMountpointIsRaidWalker(c, b.Children, mountpoint)
-		if foundRoot {
-			return true
-		}
-	}
-	return false
+	util.CheckIfMountpointIsRaid(c, m, "/var/lib/data")
 }

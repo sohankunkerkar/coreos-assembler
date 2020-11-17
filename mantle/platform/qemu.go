@@ -295,6 +295,21 @@ func (inst *QemuInstance) SwitchBootOrder() error {
 	return nil
 }
 
+// RemoveBlockDevice deletes the block device from a qemu instance.
+func (inst *QemuInstance) RemoveBlockDevice(device string) error {
+	monitor, err := newQMPMonitor(inst.tempdir)
+	if err != nil {
+		return errors.Wrapf(err, "Could not connect to QMP device")
+	}
+	monitor.Connect()
+	defer monitor.Disconnect()
+	err = deleteBlockDevice(monitor, device)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // QemuBuilder is a configurator that can then create a qemu instance
 type QemuBuilder struct {
 	// ConfigFile is a path to Ignition configuration
