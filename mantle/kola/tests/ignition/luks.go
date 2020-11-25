@@ -2,12 +2,12 @@ package ignition
 
 import (
 	"fmt"
-	"regexp"
 	"time"
 
 	"github.com/coreos/mantle/kola"
 	"github.com/coreos/mantle/kola/cluster"
 	"github.com/coreos/mantle/kola/register"
+	tutil "github.com/coreos/mantle/kola/tests/util"
 	"github.com/coreos/mantle/platform"
 	"github.com/coreos/mantle/platform/conf"
 	"github.com/coreos/mantle/platform/machine/unprivqemu"
@@ -127,26 +127,6 @@ func setupTangMachine(c cluster.TestCluster) tangServer {
 	}
 }
 
-func mustMatch(c cluster.TestCluster, r string, output []byte) {
-	m, err := regexp.Match(r, output)
-	if err != nil {
-		c.Fatalf("Failed to match regexp %s: %v", r, err)
-	}
-	if !m {
-		c.Fatalf("Regexp %s did not match text: %s", r, output)
-	}
-}
-
-func mustNotMatch(c cluster.TestCluster, r string, output []byte) {
-	m, err := regexp.Match(r, output)
-	if err != nil {
-		c.Fatalf("Failed to match regexp %s: %v", r, err)
-	}
-	if m {
-		c.Fatalf("Regexp %s matched text: %s", r, output)
-	}
-}
-
 func luksSanityTest(c cluster.TestCluster, tangd tangServer, m platform.Machine, tpm2, killTangAfterFirstBoot bool) {
 	rootPart := "/dev/disk/by-partlabel/root"
 	// hacky,  but needed for s390x because of gpt issue with naming on big endian systems: https://bugzilla.redhat.com/show_bug.cgi?id=1899990
@@ -158,15 +138,15 @@ func luksSanityTest(c cluster.TestCluster, tangd tangServer, m platform.Machine,
 	// Yes, some hacky regexps.  There is luksDump --debug-json but we'd have to massage the JSON
 	// out of other debug output and it's not clear to me it's going to be more stable.
 	// We're just going for a basic sanity check here.
-	mustMatch(c, "Cipher: *aes", luksDump)
-	mustNotMatch(c, "Cipher: *cipher_null-ecb", luksDump)
-	mustMatch(c, "0: *clevis", luksDump)
-	mustNotMatch(c, "9: *coreos", luksDump)
+	tutil.MustMatch(c, "Cipher: *aes", luksDump)
+	tutil.MustNotMatch(c, "Cipher: *cipher_null-ecb", luksDump)
+	tutil.MustMatch(c, "0: *clevis", luksDump)
+	tutil.MustNotMatch(c, "9: *coreos", luksDump)
 
 	s := c.MustSSH(m, "sudo clevis luks list -d "+rootPart)
-	mustMatch(c, "tang", s)
+	tutil.MustMatch(c, "tang", s)
 	if tpm2 {
-		mustMatch(c, "tpm2", s)
+		tutil.MustMatch(c, "tpm2", s)
 	}
 	// And validate we can automatically unlock it on reboot.
 	// We kill the tang server if we're testing thresholding
@@ -178,7 +158,7 @@ func luksSanityTest(c cluster.TestCluster, tangd tangServer, m platform.Machine,
 		c.Fatalf("Failed to reboot the machine: %v", err)
 	}
 	luksDump = c.MustSSH(m, "sudo cryptsetup luksDump "+rootPart)
-	mustMatch(c, "Cipher: *aes", luksDump)
+	tutil.MustMatch(c, "Cipher: *aes", luksDump)
 }
 
 func runTest(c cluster.TestCluster, tpm2 bool, threshold int, killTangAfterFirstBoot bool) {

@@ -16,6 +16,7 @@ package util
 
 import (
 	"encoding/json"
+	"regexp"
 
 	"github.com/coreos/mantle/kola/cluster"
 	"github.com/coreos/mantle/platform"
@@ -67,4 +68,24 @@ func checkIfMountpointIsRaidWalker(c cluster.TestCluster, bs []blockdevice, moun
 		}
 	}
 	return false
+}
+
+func MustMatch(c cluster.TestCluster, r string, output []byte) {
+	m, err := regexp.Match(r, output)
+	if err != nil {
+		c.Fatalf("Failed to match regexp %s: %v", r, err)
+	}
+	if !m {
+		c.Fatalf("Regexp %s did not match text: %s", r, output)
+	}
+}
+
+func MustNotMatch(c cluster.TestCluster, r string, output []byte) {
+	m, err := regexp.Match(r, output)
+	if err != nil {
+		c.Fatalf("Failed to match regexp %s: %v", r, err)
+	}
+	if m {
+		c.Fatalf("Regexp %s matched text: %s", r, output)
+	}
 }
