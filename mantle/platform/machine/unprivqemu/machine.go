@@ -113,6 +113,10 @@ func (m *machine) JournalOutput() string {
 	return string(data)
 }
 
-func (m *machine) RemoveBlockDevice(device string) error {
-	return m.inst.RemoveBlockDevice(device)
+func (m *machine) RemoveBlockDevice(device string, mach platform.Machine, j *platform.Journal) error {
+	return m.inst.RemoveBlockDevice(device, mach, j)
+}
+
+func (m *machine) ListDevice() (*platform.QOMBlkDev, error) {
+	return m.inst.ListDevice()
 }

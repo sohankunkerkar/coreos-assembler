@@ -102,16 +102,28 @@ var (
 			  }
 			],
 			"filesystems": [
+			 { 
+				"device": "/dev/disk/by-partlabel/esp-1",
+				"format": "vfat",
+				"label": "esp-1",
+				"wipeFilesystem": true
+			  },
+			  {
+				"device": "/dev/disk/by-partlabel/esp-2",
+				"format": "vfat",
+				"label": "esp-2",
+				"wipeFilesystem": true
+			  },
+			  {
+				"device": "/dev/disk/by-partlabel/esp-3",
+				"format": "vfat",
+				"label": "esp-3",
+				"wipeFilesystem": true
+			  },
 			  {
 				"device": "/dev/md/md-boot",
 				"format": "ext4",
 				"label": "boot",
-				"wipeFilesystem": true
-			  },
-			  {
-				"device": "/dev/md/md-esp",
-				"format": "vfat",
-				"label": "EFI-SYSTEM",
 				"wipeFilesystem": true
 			  },
 			  {
@@ -136,18 +148,6 @@ var (
 			  },
 			  {
 				"devices": [
-				  "/dev/disk/by-partlabel/esp-1",
-				  "/dev/disk/by-partlabel/esp-2",
-				  "/dev/disk/by-partlabel/esp-3"
-				],
-				"level": "raid1",
-				"name": "md-esp",
-				"options": [
-				  "--metadata=1.0"
-				]
-			  },
-			  {
-				"devices": [
 				  "/dev/disk/by-partlabel/root-1",
 				  "/dev/disk/by-partlabel/root-2",
 				  "/dev/disk/by-partlabel/root-3"
@@ -165,7 +165,6 @@ func init() {
 		Run:         runBootMirrorTest,
 		ClusterSize: 0,
 		Name:        `boot-mirror`,
-		Flags:       []register.Flag{},
 		Platforms:   []string{"qemu-unpriv"},
 		Tags:        []string{"boot-mirror", "raid1"},
 	})
@@ -182,12 +181,7 @@ func runBootMirrorTest(c cluster.TestCluster) {
 			MinMemory:       4096,
 		},
 	}
-	switch pc := c.Cluster.(type) {
-	case *unprivqemu.Cluster:
-		m, err = pc.NewMachineWithQemuOptions(bootmirror, options)
-	default:
-		m, err = pc.NewMachine(bootmirror)
-	}
+	m, err = c.Cluster.(*unprivqemu.Cluster).NewMachineWithQemuOptions(bootmirror, options)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -206,14 +200,19 @@ func runBootMirrorTest(c cluster.TestCluster) {
 	// Check that growpart didn't run
 	c.MustSSH(m, "if [ -e /run/coreos-growpart.stamp ]; then exit 1; fi")
 	// Delete the first boot disk to see if the system boots successfully.
-	if err = m.(platform.QEMUMachine).RemoveBlockDevice("/dev/disk/by-id/virtio-primary-disk"); err != nil {
+	devs, _ := m.(platform.QEMUMachine).ListDevice()
+	for _, dev := range devs.Return {
+		c.Logf("list of devices:%s :%s ", dev.Device, dev.DevicePath)
+	}
+	var j *platform.Journal
+	if err = m.(platform.QEMUMachine).RemoveBlockDevice("/machine/peripheral-anon/device[2]/virtio-backend", m, j); err != nil {
 		c.Fatalf("failed to delete the first boot disk: %v", err)
 	}
-	err = m.Reboot()
-	if err != nil {
-		c.Fatalf("Failed to reboot the machine: %v", err)
-	}
-
+	// err = m.Reboot()
+	// if err != nil {
+	// 	c.Fatalf("Failed to reboot the machine: %v", err)
+	// }
+	c.MustSSH(m, "mdadm --detail /machine/peripheral-anon/device[2]/virtio-backend ")
 	c.MustSSH(m, "grep root=UUID= /proc/cmdline")
 	c.MustSSH(m, "grep rd.md.uuid= /proc/cmdline")
 }

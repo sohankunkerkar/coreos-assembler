@@ -112,6 +112,29 @@ func RebootMachine(m Machine, j *Journal) error {
 	return StartMachineAfterReboot(m, j, bootId)
 }
 
+func StartShutDown(m Machine) error {
+	out, stderr, err := m.SSH("sudo shutdown")
+	if _, ok := err.(*ssh.ExitMissingError); ok {
+		// A terminated session is perfectly normal during reboot.
+		err = nil
+	}
+	if err != nil {
+		return fmt.Errorf("issuing shutdown command failed: %s: %s: %s", out, err, stderr)
+	}
+	return nil
+}
+
+func ShutdownMachine(m Machine, j *Journal) (Machine, *Journal, string, error) {
+	bootID, err := GetMachineBootId(m)
+	if err != nil {
+		return nil, nil, bootID, err
+	}
+	if err := StartShutDown(m); err != nil {
+		return nil, nil, bootID, fmt.Errorf("machine %q failed to shutdown: %v", m.ID(), err)
+	}
+	return m, j, bootID, nil
+}
+
 // WaitForMachineReboot will wait for the machine to reboot, i.e. it is assumed
 // an action which will cause a reboot has already been initiated. Note the
 // timeout here is for how long to wait for the machine to seemingly go

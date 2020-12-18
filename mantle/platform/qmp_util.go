@@ -101,7 +101,7 @@ func setBootIndexForDevice(monitor *qmp.SocketMonitor, device string, bootindex 
 
 // Delete a block device for the particular qemu instance
 func deleteBlockDevice(monitor *qmp.SocketMonitor, device string) error {
-	cmd := fmt.Sprintf(`{ "execute": "drive_del", "arguments": { "id":"%s" } }`, device)
+	cmd := fmt.Sprintf(`{ "execute": "device_del", "arguments": { "id":"%s" } }`, device)
 	if _, err := monitor.Run([]byte(cmd)); err != nil {
 		return errors.Wrapf(err, "Running QMP command")
 	}

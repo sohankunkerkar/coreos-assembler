@@ -99,7 +99,8 @@ type QEMUMachine interface {
 
 	// RemoveBlockDevice removes the block device from a given qemu
 	// instance.
-	RemoveBlockDevice(device string) error
+	RemoveBlockDevice(device string, m Machine, j *Journal) error
+	ListDevice() (*QOMBlkDev, error)
 }
 
 // Cluster represents a cluster of machines within a single Flight.

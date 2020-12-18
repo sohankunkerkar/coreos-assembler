@@ -296,7 +296,11 @@ func (inst *QemuInstance) SwitchBootOrder() error {
 }
 
 // RemoveBlockDevice deletes the block device from a qemu instance.
-func (inst *QemuInstance) RemoveBlockDevice(device string) error {
+func (inst *QemuInstance) RemoveBlockDevice(device string, m Machine, j *Journal) error {
+	mach, journal, bootID, err := ShutdownMachine(m, j)
+	if err != nil {
+		return err
+	}
 	monitor, err := newQMPMonitor(inst.tempdir)
 	if err != nil {
 		return errors.Wrapf(err, "Could not connect to QMP device")
@@ -307,7 +311,25 @@ func (inst *QemuInstance) RemoveBlockDevice(device string) error {
 	if err != nil {
 		return err
 	}
+	err = StartMachineAfterReboot(mach, journal, bootID)
+	if err != nil {
+		return err
+	}
 	return nil
+}
+
+func (inst *QemuInstance) ListDevice() (*QOMBlkDev, error) {
+	monitor, err := newQMPMonitor(inst.tempdir)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not connect to QMP device")
+	}
+	monitor.Connect()
+	defer monitor.Disconnect()
+	devs, err := listQMPBlkDevices(monitor, inst.tempdir)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not list devices through qmp")
+	}
+	return devs, err
 }
 
 // QemuBuilder is a configurator that can then create a qemu instance

@@ -14,7 +14,6 @@
 package misc
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/coreos/mantle/kola"
@@ -22,7 +21,6 @@ import (
 	"github.com/coreos/mantle/kola/register"
 	"github.com/coreos/mantle/kola/tests/util"
 	"github.com/coreos/mantle/platform"
-	"github.com/coreos/mantle/platform/conf"
 	"github.com/coreos/mantle/platform/machine/unprivqemu"
 	"github.com/coreos/mantle/system"
 )
@@ -83,10 +81,16 @@ var (
 		  ],
 		  "filesystems": [
 			{
-			  "device": "/dev/md/md-esp",
+			  "device": "/dev/disk/by-partlabel/esp-1",
 			  "format": "vfat",
-			  "label": "EFI-SYSTEM",
+			  "label": "esp1",
 			  "wipeFilesystem": true
+			},
+			{
+				"device": "/dev/disk/by-partlabel/esp-2",
+				"format": "vfat",
+				"label": "esp2",
+				"wipeFilesystem": true
 			},
 			{
 			  "device": "/dev/md/md-boot",
@@ -104,7 +108,7 @@ var (
 		  "luks": [
 			{
 			  "clevis": {
-				"tpm2": %v
+				"tpm2": "true"
 			  },
 			  "device": "/dev/md/md-root",
 			  "label": "luks-root",
@@ -113,17 +117,6 @@ var (
 			}
 		  ],
 		  "raid": [
-			{
-			  "devices": [
-				"/dev/disk/by-partlabel/esp-1",
-				"/dev/disk/by-partlabel/esp-2"
-			  ],
-			  "level": "raid1",
-			  "name": "md-esp",
-			  "options": [
-				"--metadata=1.0"
-			  ]
-			},
 			{
 			  "devices": [
 				"/dev/disk/by-partlabel/boot-1",
@@ -153,9 +146,8 @@ func init() {
 		Run:                  runBootMirrorLUKSTest,
 		ClusterSize:          0,
 		Name:                 `boot-mirror-luks`,
-		Flags:                []register.Flag{},
 		Platforms:            []string{"qemu-unpriv"},
-		ExcludeArchitectures: []string{"s390x", "ppc64le", "aarch64"}, // no TPM support for s390x, ppc64le, aarch64 in qemu
+		ExcludeArchitectures: []string{"s390x"}, // no TPM support for s390x in qemu
 		Tags:                 []string{"boot-mirror", "luks", "raid1", "tpm2", kola.NeedsInternetTag},
 	})
 }
@@ -171,13 +163,7 @@ func runBootMirrorLUKSTest(c cluster.TestCluster) {
 			MinMemory:       4096,
 		},
 	}
-	ignition := conf.Ignition(fmt.Sprintf(string(bootmirrorluks), true))
-	switch pc := c.Cluster.(type) {
-	case *unprivqemu.Cluster:
-		m, err = pc.NewMachineWithQemuOptions(ignition, options)
-	default:
-		m, err = pc.NewMachine(ignition)
-	}
+	m, err = c.Cluster.(*unprivqemu.Cluster).NewMachineWithQemuOptions(bootmirror, options)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -193,14 +179,15 @@ func runBootMirrorLUKSTest(c cluster.TestCluster) {
 	// Check that growpart didn't run
 	c.MustSSH(m, "if [ -e /run/coreos-growpart.stamp ]; then exit 1; fi")
 	// Delete the first boot disk to see if the system boots successfully.
-	if err = m.(platform.QEMUMachine).RemoveBlockDevice("/dev/disk/by-id/virtio-primary-disk"); err != nil {
+	var j *platform.Journal
+	if err = m.(platform.QEMUMachine).RemoveBlockDevice("/machine/peripheral-anon/device[2]/virtio-backend", m, j); err != nil {
 		c.Fatalf("failed to delete the first boot disk: %v", err)
 	}
-	err = m.Reboot()
-	if err != nil {
-		c.Fatalf("Failed to reboot the machine: %v", err)
-	}
-
+	// err = m.Reboot()
+	// if err != nil {
+	// 	c.Fatalf("Failed to reboot the machine: %v", err)
+	// }
+	c.MustSSH(m, "mdadm --detail /machine/peripheral-anon/device[2]/virtio-backend ")
 	c.MustSSH(m, "grep root=UUID= /proc/cmdline")
 	c.MustSSH(m, "grep rd.md.uuid= /proc/cmdline")
 }
