@@ -92,6 +92,16 @@ type Machine interface {
 	JournalOutput() string
 }
 
+// QEMUMachine represents a qemu instance.
+type QEMUMachine interface {
+	// Embedding the Machine interface
+	Machine
+
+	// RemoveBlockDevice removes the primary device from a given qemu
+	// instance and sets the secondary devicea as primary.
+	RemoveBlockDevice() error
+}
+
 // Cluster represents a cluster of machines within a single Flight.
 type Cluster interface {
 	// Platform returns the name of the platform.

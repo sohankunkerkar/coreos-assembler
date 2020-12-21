@@ -303,6 +303,41 @@ func (inst *QemuInstance) SwitchBootOrder() (err error) {
 	return nil
 }
 
+// RemoveBlockDevice deletes the primary device from a qemu instance
+// and sets the seconday device as primary.
+func (inst *QemuInstance) RemoveBlockDevice() error {
+	var primaryDevice string
+	var secondaryDevicesPath []string
+	monitor, err := newQMPMonitor(inst.tempdir)
+	if err != nil {
+		return errors.Wrapf(err, "Could not connect to QMP device")
+	}
+	monitor.Connect()
+	defer monitor.Disconnect()
+	blkdevs, err := listQMPBlkDevices(monitor, inst.tempdir)
+	if err != nil {
+		return errors.Wrapf(err, "Could not list block devices through qmp")
+	}
+	for _, dev := range blkdevs.Return {
+		if !dev.Removable {
+			if dev.InsertedDevice.BackingfileDepth == 1 {
+				primaryDevice = dev.DevicePath
+			} else {
+				secondaryDevicesPath = append(secondaryDevicesPath, dev.DevicePath)
+			}
+		}
+	}
+	err = setBootIndexForDevice(monitor, primaryDevice, -1)
+	if err != nil {
+		return errors.Wrapf(err, "Could not set bootindex for %v")
+	}
+	err = setBootIndexForDevice(monitor, secondaryDevicesPath[0], 1)
+	if err != nil {
+		return errors.Wrapf(err, "Could not set bootindex for blkdev %v ", secondaryDevicesPath[0])
+	}
+	return nil
+}
+
 // QemuBuilder is a configurator that can then create a qemu instance
 type QemuBuilder struct {
 	// ConfigFile is a path to Ignition configuration
