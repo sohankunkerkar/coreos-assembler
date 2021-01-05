@@ -33,6 +33,7 @@ pod(image: 'registry.fedoraproject.org/fedora:33', runAsUser: 0, kvm: true, memo
             try {
                 cosa_cmd("kola --basic-qemu-scenarios")
                 cosa_cmd("kola run --parallel 8")
+                cosa_cmd("kola run --qemu-firmware uefi boot-mirror*")
             } finally {
                 shwrap("tar -c -C /srv/tmp kola | xz -c9 > ${env.WORKSPACE}/kola.tar.xz")
                 archiveArtifacts allowEmptyArchive: true, artifacts: 'kola.tar.xz'
