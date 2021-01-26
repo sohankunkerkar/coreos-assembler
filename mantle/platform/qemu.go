@@ -306,6 +306,60 @@ func (inst *QemuInstance) SwitchBootOrder() (err error) {
 	return nil
 }
 
+// RemovePrimaryBlockDevice deletes the primary device from a qemu instance
+// and sets the seconday device as primary. It expects that all block devices
+// are mirrors.
+func (inst *QemuInstance) RemovePrimaryBlockDevice() error {
+	var primaryDevice string
+	var secondaryDevicePath string
+	monitor, err := newQMPMonitor(inst.tempdir)
+	if err != nil {
+		return errors.Wrapf(err, "Could not connect to QMP device")
+	}
+	if err := monitor.Connect(); err != nil {
+		return errors.Wrapf(err, "Could not connect to QMP device")
+	}
+
+	defer func() {
+		e := monitor.Disconnect()
+		if err != nil {
+			err = fmt.Errorf("%v; %v", err, e)
+		} else {
+			err = e
+		}
+	}()
+	blkdevs, err := listQMPBlkDevices(monitor, inst.tempdir)
+	if err != nil {
+		return errors.Wrapf(err, "Could not list block devices through qmp")
+	}
+	for _, dev := range blkdevs.Return {
+		if !dev.Removable {
+			if dev.Inserted.BackingfileDepth == 1 {
+				primaryDevice = dev.DevicePath
+			} else {
+				secondaryDevicePath = dev.DevicePath
+			}
+		}
+	}
+	err = setBootIndexForDevice(monitor, primaryDevice, -1)
+	if err != nil {
+		return errors.Wrapf(err, "Could not set bootindex for %v", primaryDevice)
+	}
+	err = deleteBlockDevice(monitor, primaryDevice[:strings.LastIndex(primaryDevice, "/")])
+	if err != nil {
+		return errors.Wrapf(err, "Could not delete primary device %v", primaryDevice)
+	}
+	if len(secondaryDevicePath) == 0 {
+		return errors.Wrapf(err, "Could not find secondary device")
+	}
+	err = setBootIndexForDevice(monitor, secondaryDevicePath, 1)
+	if err != nil {
+		return errors.Wrapf(err, "Could not set bootindex for blkdev %v", secondaryDevicePath)
+	}
+
+	return nil
+}
+
 // QemuBuilder is a configurator that can then create a qemu instance
 type QemuBuilder struct {
 	// ConfigFile is a path to Ignition configuration
